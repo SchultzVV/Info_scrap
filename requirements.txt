@@ -9,14 +9,21 @@ opencv-python-headless==4.9.0.80
 Pillow==10.2.0
 numpy==1.26.3
 
-# YOLO
+# YOLO - Layout Detection
 ultralytics==8.1.0
 torch>=2.1.0
 torchvision>=0.16.0
 
-# OCR
+# OCR - Text Extraction
+paddleocr==2.7.3
+paddlepaddle==2.6.0
 easyocr==1.7.1
 pytesseract==0.3.10
 
+# Document Understanding (LayoutLM - optional)
+# transformers==4.36.0
+# datasets==2.16.0
+
 # Utilidades
 python-dotenv==1.0.0
+requests==2.31.0

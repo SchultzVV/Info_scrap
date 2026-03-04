@@ -1,204 +1,174 @@
-# 🏷️ Sistema de Detecção e Leitura de Preços - YOLO + OCR
+# 🏷️ Retail Flyer Understanding System
 
-Sistema automatizado para detectar e ler valores promocionais em imagens usando YOLOv8 e OCR (EasyOCR/Tesseract).
+Sistema de nível produção para extração de dados promocionais de panfletos de varejo.
 
-## 📋 Características
+## 🎯 Stack Completo
 
-- 🔍 **Detecção com YOLO**: Utiliza YOLOv8 para detectar regiões de preços
-- 📖 **OCR Avançado**: Lê valores usando EasyOCR ou Tesseract
-- 🚀 **API RESTful**: Interface FastAPI para integração fácil
-- 🎯 **Pré-processamento**: Melhora imagens automaticamente para OCR
-- 💰 **Extração de Valores**: Identifica preços em diversos formatos (R$ 36,99, 3699, etc)
+**YOLO** → **OCR** → **LayoutLM** → **Product Linking**
 
-## 🛠️ Instalação
+### O que foi criado
 
-### Pré-requisitos
+✅ **Arquitetura modular seguindo SOLID**  
+✅ **Pipeline completo em 5 estágios**  
+✅ **API REST com FastAPI**  
+✅ **Detecção de layout com YOLO**  
+✅ **OCR com PaddleOCR (fallback EasyOCR)**  
+✅ **Entendimento espacial estilo LayoutLM**  
+✅ **Linking de produto-preço-desconto**  
+✅ **Testes automatizados**  
+✅ **Docker + Docker Compose**  
+✅ **Documentação completa**
 
-- Python 3.8+
-- Tesseract OCR (opcional, se não usar EasyOCR)
+---
 
-#### Instalar Tesseract (Ubuntu/Debian):
-```bash
-sudo apt-get update
-sudo apt-get install tesseract-ocr tesseract-ocr-por
-```
+## 🚀 Start Rápido
 
-#### Instalar Tesseract (macOS):
-```bash
-brew install tesseract tesseract-lang
-```
-
-### Instalação das dependências
+### Docker (Recomendado)
 
 ```bash
-# Clone ou navegue até o diretório
-cd /home/v/Desktop/info_scrap
-
-# Crie um ambiente virtual (recomendado)
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-# venv\Scripts\activate  # Windows
-
-# Instale as dependências
-pip install -r requirements.txt
+docker-compose up --build
 ```
 
-## 🚀 Uso
+API disponível em: http://localhost:8000/docs
 
-### Iniciar o servidor
+### Local
 
 ```bash
-python main.py
+# Instalar
+./install.sh
+
+# Iniciar servidor
+./run.sh
+
+# OU
+python api.py
 ```
 
-O servidor estará rodando em `http://localhost:8000`
+---
 
-### Documentação interativa
+## 📡 Usar a API
 
-Acesse a documentação Swagger da API:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+### Testar com cURL
 
-### Endpoints
-
-#### `POST /detect-price`
-Detecta e lê preços em uma imagem.
-
-**Exemplo com curl:**
 ```bash
-curl -X POST "http://localhost:8000/detect-price" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@image_example.png"
+curl -X POST "http://localhost:8000/analyze-flyer?return_debug=true" \
+  -F "file=@examples/image_example.png"
 ```
 
-**Exemplo com Python:**
-```python
-import requests
+### Testar com Python
 
-url = "http://localhost:8000/detect-price"
-files = {"file": open("image_example.png", "rb")}
-response = requests.post(url, files=files)
-print(response.json())
+```bash
+# Pipeline local (sem API)
+python tests/test_pipeline.py examples/image_example.png
+
+# API (servidor deve estar rodando)
+python tests/test_api.py examples/image_example.png
 ```
 
-**Resposta:**
+---
+
+## 📊 Output
+
 ```json
 {
-  "success": true,
-  "message": "1 preço(s) detectado(s)",
-  "detections": [
+  "products": [
     {
-      "id": 1,
-      "bbox": {
-        "x1": 100,
-        "y1": 150,
-        "x2": 250,
-        "y2": 200
-      },
-      "confidence": 0.89,
-      "class": "object",
-      "ocr_text": "R$ 36,99",
-      "ocr_confidence": 0.92,
-      "price_value": 36.99
+      "product_name": "Café Pilão 500g",
+      "brand": "Pilão",
+      "price": 13.99,
+      "price_formatted": "R$ 13,99",
+      "discount": "20%",
+      "bounding_box": [320, 410, 540, 680],
+      "confidence": 0.94
     }
   ],
-  "image_size": {
-    "width": 800,
-    "height": 600
+  "metadata": {
+    "processing_time_seconds": 2.5,
+    "num_products": 1
   }
 }
 ```
 
-#### `GET /health`
-Verifica o status da API e modelos.
+---
 
-## 📁 Estrutura do Projeto
+## 🏗️ Arquitetura
 
 ```
-info_scrap/
-├── main.py              # API FastAPI principal
-├── detector.py          # Módulo de detecção YOLO
-├── ocr_reader.py        # Módulo de leitura OCR
-├── requirements.txt     # Dependências Python
-├── test_api.py         # Script para testar API
-├── README.md           # Este arquivo
-└── image_example.png   # Imagem de exemplo
+┌──────────────────────────────────────────┐
+│  Stage 1: Layout Detection (YOLO)      │
+│  Classes: product_image, price_tag,     │
+│           discount_badge, product_title │
+└──────────────┬───────────────────────────┘
+               ↓
+┌──────────────────────────────────────────┐
+│  Stage 2: Region Cropping               │
+└──────────────┬───────────────────────────┘
+               ↓
+┌──────────────────────────────────────────┐
+│  Stage 3: OCR (PaddleOCR / EasyOCR)     │
+└──────────────┬───────────────────────────┘
+               ↓
+┌──────────────────────────────────────────┐
+│  Stage 4: Document Understanding        │
+│  Spatial reasoning: title → price       │
+└──────────────┬───────────────────────────┘
+               ↓
+┌──────────────────────────────────────────┐
+│  Stage 5: Product-Price Linking         │
+└──────────────────────────────────────────┘
 ```
 
-## 🔧 Configuração Avançada
+---
 
-### Usar modelo YOLO customizado
+## 📁 Estrutura
 
-Se você treinou seu próprio modelo YOLO para detectar preços:
+```
+src/
+├── detectors/         # YOLO layout detector
+├── ocr/               # PaddleOCR engine
+├── layout/            # LayoutLM processor
+├── linking/           # Product-price linker
+└── pipeline/          # Pipeline orchestrator
 
-```python
-# Em detector.py, modifique o __init__:
-detector = YOLODetector(model_path='caminho/para/seu/modelo.pt')
+api.py                 # FastAPI server
+tests/                 # Testes
+Dockerfile             # Container
 ```
 
-### Ajustar threshold de confiança
+---
 
-```python
-# Em detector.py:
-detector = YOLODetector(confidence_threshold=0.5)
-```
+## 📚 Documentação Completa
 
-### Escolher entre EasyOCR e Tesseract
+Veja **README_PRODUCTION.md** para:
+- Arquitetura detalhada
+- Guias de uso avançado
+- Como treinar modelos customizados
+- Performance benchmarks
+- Troubleshooting
 
-```python
-# Em ocr_reader.py:
-ocr_reader = OCRReader(use_easyocr=True)  # EasyOCR (padrão)
-# ou
-ocr_reader = OCRReader(use_easyocr=False) # Tesseract
-```
+---
 
-## 🧪 Testando
+## 🎓 Estado da Arte
 
-Execute o script de teste:
+Este sistema usa as mesmas técnicas de empresas como Amazon e Walmart:
 
-```bash
-python test_api.py
-```
+1. **YOLO** para detecção de layout
+2. **OCR** para extração de texto
+3. **LayoutLM** para entendimento espacial de documentos
+4. **Graph Neural Networks** (futuro) para knowledge graphs
 
-Ou teste manualmente com a imagem de exemplo:
+---
 
-```bash
-curl -X POST "http://localhost:8000/detect-price" \
-  -F "file=@image_example.png" | jq
-```
+## ✨ Features
 
-## 📦 Dependências Principais
+- ✅ Modular e extensível
+- ✅ Fácil de trocar componentes
+- ✅ Testes automatizados
+- ✅ Docker ready
+- ✅ Documentação completa
+- ✅ API REST profissional
+- ✅ Suporte GPU/CPU
 
-- **FastAPI**: Framework web moderno e rápido
-- **Ultralytics**: YOLOv8 para detecção de objetos
-- **EasyOCR**: OCR com suporte a múltiplos idiomas
-- **OpenCV**: Processamento de imagens
-- **PyTorch**: Backend para modelos de deep learning
+---
 
-## 🐛 Solução de Problemas
-
-### Erro: "Tesseract not found"
-Instale o Tesseract OCR no seu sistema operacional.
-
-### Erro: CUDA out of memory
-O sistema usa CPU por padrão. Para usar GPU, certifique-se de ter PyTorch com suporte CUDA instalado.
-
-### OCR não está lendo corretamente
-- Verifique se a imagem tem boa qualidade
-- Ajuste o pré-processamento em `ocr_reader.py`
-- Experimente alterar entre EasyOCR e Tesseract
-
-### YOLO não detecta preços
-- O modelo YOLOv8n padrão é genérico
-- Considere treinar um modelo customizado com imagens de preços
-- Ajuste o `confidence_threshold`
-
-## 📄 Licença
-
-Este projeto é fornecido como está para fins educacionais e de pesquisa.
-
-## 🤝 Contribuições
-
-Contribuições são bem-vindas! Sinta-se livre para abrir issues ou pull requests.
+**Desenvolvido seguindo princípios SOLID e arquitetura de nível produção** 🚀
