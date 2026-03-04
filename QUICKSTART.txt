@@ -1,0 +1,43 @@
+🚀 GUIA RÁPIDO DE INÍCIO
+========================
+
+1️⃣  INSTALAÇÃO AUTOMÁTICA
+   ./install.sh
+
+2️⃣  INSTALAÇÃO MANUAL
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+
+3️⃣  INICIAR SERVIDOR
+   python main.py
+   
+   Acesse: http://localhost:8000/docs
+
+4️⃣  TESTAR COM EXEMPLO
+   # Via API (servidor deve estar rodando)
+   python test_api.py
+   
+   # Localmente (sem servidor)
+   python test_local.py
+
+5️⃣  TESTAR COM SUA IMAGEM
+   python test_api.py sua_imagem.png
+   # ou
+   python test_local.py sua_imagem.png
+
+6️⃣  TESTAR COM CURL
+   curl -X POST "http://localhost:8000/detect-price" \
+     -F "file=@image_example.png"
+
+7️⃣  DOCKER (OPCIONAL)
+   docker-compose up --build
+
+📚 DOCUMENTAÇÃO COMPLETA
+   Veja README.md para informações detalhadas
+
+🐛 PROBLEMAS?
+   - Certifique-se que o Python 3.8+ está instalado
+   - Instale Tesseract: sudo apt-get install tesseract-ocr
+   - Verifique se todas as dependências foram instaladas
+   - Consulte a seção "Solução de Problemas" no README.md

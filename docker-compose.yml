@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./image_example.png:/app/image_example.png:ro
+    environment:
+      - USE_GPU=false
+      - YOLO_CONFIDENCE=0.25
+    restart: unless-stopped
