@@ -1,0 +1,305 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║             ✅ IMAGEM DOCKER PRONTA PARA USAR!              ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 O QUE FOI CRIADO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Dockerfile (atualizado)
+   - Base: python:3.10-slim
+   - Inclui: tesseract, OpenCV, curl
+   - Comando: uvicorn api:app --host 0.0.0.0 --port 8000
+   - Porta: 8000
+   - Pronto para produção!
+
+✅ docker-compose.yml (Legacy v1)
+   - Imagem: flyer-understanding-api:latest
+   - Porta: 8000
+   - Volumes: examples, models, uploads
+   - Healthcheck: ✅
+   - Auto-restart: ✅
+
+✅ docker-compose-v2.yml (Modern v2)
+   - Imagem: flyer-extraction-modern:latest
+   - Porta: 8000
+   - Suporta ambas APIs (v1 e v2)
+   - Healthcheck: ✅
+   - Auto-restart: ✅
+
+✅ test_docker.sh
+   - Build automático
+   - Testa API
+   - Mostra resultado
+
+✅ Makefile (atualizado)
+   - make build / make build-v2
+   - make up / make up-v2
+   - make down / make down-v2
+   - make test-docker
+   - make clean-docker
+
+✅ DOCKER_GUIDE.txt
+   - Guia completo de uso
+   - Troubleshooting
+   - Boas práticas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 COMO USAR - 3 FORMAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌──────────────────────────────────────────────────────────────┐
+│ 1️⃣  VIA MAKEFILE (Mais Fácil)                               │
+└──────────────────────────────────────────────────────────────┘
+
+# Legacy (v1)
+$ make build        # Build da imagem
+$ make up           # Sobe container
+$ make logs         # Ver logs
+$ make down         # Para container
+
+# Modern (v2)
+$ make build-v2     # Build da imagem
+$ make up-v2        # Sobe container
+$ make logs-v2      # Ver logs
+$ make down-v2      # Para container
+
+# Teste completo
+$ make test-docker
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ 2️⃣  VIA DOCKER-COMPOSE (Direto)                             │
+└──────────────────────────────────────────────────────────────┘
+
+# Legacy (v1)
+$ docker-compose build
+$ docker-compose up -d
+$ docker-compose logs -f
+$ docker-compose down
+
+# Modern (v2)
+$ docker-compose -f docker-compose-v2.yml build
+$ docker-compose -f docker-compose-v2.yml up -d
+$ docker-compose -f docker-compose-v2.yml logs -f
+$ docker-compose -f docker-compose-v2.yml down
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ 3️⃣  VIA SCRIPT (Teste Automático)                           │
+└──────────────────────────────────────────────────────────────┘
+
+$ ./test_docker.sh
+
+O que faz:
+  1. Build da imagem
+  2. Sobe container
+  3. Aguarda API estar pronta
+  4. Testa com imagem de exemplo
+  5. Mostra resultado
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧪 TESTAR IMAGEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Depois de rodar `make up`:
+
+# 1. Verificar se está rodando
+$ docker ps
+$ curl http://localhost:8000/health
+
+# 2. Testar com imagem
+$ curl -X POST http://localhost:8000/analyze-flyer \
+    -F "file=@examples/image_example.png"
+
+# 3. Ver documentação
+Abrir navegador: http://localhost:8000/docs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ESPECIFICAÇÕES DA IMAGEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nome: flyer-understanding-api:latest
+Base: python:3.10-slim (Debian)
+Tamanho estimado: ~2.5 GB
+
+Pacotes Sistema:
+  • tesseract-ocr + tesseract-ocr-por
+  • OpenCV (libgl1, libglib2.0-0, etc)
+  • curl (healthcheck)
+
+Pacotes Python:
+  • FastAPI + Uvicorn (API)
+  • YOLOv8 (ultralytics)
+  • PaddleOCR + EasyOCR
+  • PyTorch
+  • OpenCV Python
+  • Transformers (opcional)
+
+Estrutura:
+  /app
+  ├── api.py              (Legacy API)
+  ├── src/                (Source code)
+  │   ├── detectors/      (YOLO)
+  │   ├── ocr/           (OCR)
+  │   ├── pipeline/      (Pipeline)
+  │   └── serving/       (API v2)
+  ├── pipelines/         (Modern)
+  ├── examples/          (Test images)
+  ├── models/            (Model weights)
+  └── uploads/           (Temp)
+
+Porta: 8000
+Healthcheck: /health (30s interval)
+Restart: unless-stopped
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 EXEMPLO COMPLETO - PASSO A PASSO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Terminal:
+────────
+$ cd /home/v/Desktop/info_scrap
+
+$ make build
+📦 Building Docker image...
+[+] Building 180.5s...
+✅ Build complete!
+
+$ make up
+🐳 Starting containers...
+✅ API running at http://localhost:8000
+📖 Docs: http://localhost:8000/docs
+
+$ curl http://localhost:8000/health
+{
+  "status": "healthy",
+  "timestamp": "2026-03-05T...",
+  "version": "1.0"
+}
+
+$ curl -X POST http://localhost:8000/analyze-flyer \
+    -F "file=@examples/image_example.png" \
+    | python -m json.tool
+
+{
+  "products": [
+    {
+      "product_name": "Produto Exemplo",
+      "price": 13.99,
+      "discount": "20%"
+    }
+  ],
+  "metadata": {
+    "processing_time_seconds": 1.2,
+    "num_products": 1
+  }
+}
+
+$ make down
+🛑 Stopping containers...
+✅ Containers stopped
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 PERSONALIZAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Mudar porta (no docker-compose.yml):
+────────────────────────────────────
+services:
+  flyer-api:
+    ports:
+      - "9000:8000"  # Host:Container
+
+Usar GPU:
+────────
+environment:
+  - USE_GPU=true
+
+
+Adicionar volume:
+────────────────
+volumes:
+  - ./outputs:/app/outputs
+
+
+Limitar recursos:
+────────────────
+deploy:
+  resources:
+    limits:
+      cpus: '2'
+      memory: 4G
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema: Build falha
+────────────────────
+$ make clean-docker
+$ make build --no-cache
+
+
+Problema: Container não inicia
+──────────────────────────────
+$ docker-compose logs
+$ docker ps -a
+
+
+Problema: Porta em uso
+─────────────────────
+# Mudar porta ou parar processo
+$ lsof -ti:8000 | xargs kill -9
+
+
+Problema: API retorna erro 500
+──────────────────────────────
+$ make logs
+# Verificar logs de erro
+
+
+Problema: Healthcheck falha
+──────────────────────────
+# Aguardar start_period (40s)
+$ docker ps  # Ver coluna STATUS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Antes de usar em produção:
+
+□ make build         → Build sucesso
+□ make up            → Container iniciou
+□ curl .../health    → Status: healthy
+□ docker ps          → Container rodando
+□ make logs          → Sem erros críticos
+□ Testar endpoint    → Resposta correta
+□ Volumes montados   → /app/models existe
+□ Backup modelos     → Salvos externamente
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║                🎉 DOCKER 100% FUNCIONAL! 🎉                 ║
+║                                                              ║
+║  Comandos Essenciais:                                        ║
+║                                                              ║
+║    make build    → Build da imagem                           ║
+║    make up       → Subir container                           ║
+║    make down     → Parar container                           ║
+║    make logs     → Ver logs                                  ║
+║                                                              ║
+║  Teste Rápido:                                               ║
+║                                                              ║
+║    make test-docker                                          ║
+║                                                              ║
+║  Documentação:                                               ║
+║                                                              ║
+║    http://localhost:8000/docs                                ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # Modern API v2.0 - State of the Art 2026
+  flyer-extraction-v2:
+    build: .
+    image: flyer-extraction-modern:latest
+    container_name: flyer-extraction-modern
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_NAME=donut              # donut, pix2struct, kosmos2
+      - USE_GPU=false
+      - MODEL_CACHE_DIR=/app/models
+      - CONFIDENCE_THRESHOLD=0.7
+    volumes:
+      - ./models:/app/models
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+    command: python src/serving/api_v2.py
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+  
+  # Legacy API v1.0 - Traditional Pipeline (Optional)
+  flyer-extraction-v1:
+    build: .
+    image: flyer-extraction-legacy:latest
+    container_name: flyer-extraction-legacy
+    ports:
+      - "8001:8000"
+    environment:
+      - MODEL_PATH=/app/models
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - ./models:/app/models
+      - ./uploads:/app/uploads
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - legacy  # Only start with: docker-compose --profile legacy up

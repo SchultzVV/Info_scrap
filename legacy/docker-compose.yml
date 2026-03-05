@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  flyer-api:
+    build: .
+    image: flyer-understanding-api:latest
+    container_name: flyer-understanding-api
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./models:/app/models
+      - ./uploads:/app/uploads
+    environment:
+      - USE_GPU=false
+      - YOLO_CONFIDENCE=0.25
+      - OCR_LANG=pt
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

@@ -1,0 +1,35 @@
+# FastAPI e servidor
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+pydantic==2.5.0
+
+# Processamento de imagens
+opencv-python==4.6.0.66
+opencv-python-headless==4.6.0.66
+Pillow==10.2.0
+numpy==1.26.3
+
+# YOLO - Layout Detection (Legacy Pipeline v1)
+ultralytics==8.1.0
+torch>=2.1.0
+torchvision>=0.16.0
+
+# OCR - Text Extraction (Legacy Pipeline v1)
+paddleocr==2.7.3
+paddlepaddle>=2.6.2
+easyocr==1.7.1
+pytesseract==0.3.10
+
+# Multimodal Transformers - State of the Art 2026 (Pipeline v2)
+# Uncomment to use modern multimodal models:
+# transformers==4.36.0
+# sentencepiece==0.1.99
+# datasets==2.16.0
+
+# For Donut model specifically:
+# transformers[torch]==4.36.0
+
+# Utilidades
+python-dotenv==1.0.0
+requests==2.31.0

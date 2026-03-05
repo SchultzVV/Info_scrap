@@ -1,0 +1,497 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║              🐳 DOCKER - GUIA COMPLETO                      ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 RESUMO RÁPIDO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 Início Rápido (3 comandos):
+
+1. Build da imagem:
+   $ make build
+
+2. Subir container:
+   $ make up
+
+3. Testar API:
+   $ curl http://localhost:8000/health
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐳 IMAGENS DOCKER DISPONÍVEIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌──────────────────────────────────────────────────────────────┐
+│ 1️⃣  LEGACY API (v1) - Recomendado para Produção            │
+└──────────────────────────────────────────────────────────────┘
+
+Nome: flyer-understanding-api:latest
+Base: python:3.10-slim
+Tamanho: ~2.5 GB
+Pipeline: YOLO + PaddleOCR + LayoutLM + Linking
+Porta: 8000
+Estabilidade: ⭐⭐⭐⭐⭐
+
+Arquivo: docker-compose.yml
+Comando: uvicorn api:app --host 0.0.0.0 --port 8000
+
+Build:
+  $ make build
+  $ docker-compose build
+
+Run:
+  $ make up
+  $ docker-compose up -d
+
+Stop:
+  $ make down
+  $ docker-compose down
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ 2️⃣  MODERN API (v2) - Estado da Arte                        │
+└──────────────────────────────────────────────────────────────┘
+
+Nome: flyer-extraction-modern:latest
+Base: python:3.10-slim
+Tamanho: ~3.0 GB
+Pipeline: Donut/Pix2Struct (Multimodal Transformer)
+Porta: 8000
+Estabilidade: ⭐⭐⭐⭐ (requer modelo fine-tuned)
+
+Arquivo: docker-compose-v2.yml
+Comando: python src/serving/api_v2.py
+
+Build:
+  $ make build-v2
+  $ docker-compose -f docker-compose-v2.yml build
+
+Run:
+  $ make up-v2
+  $ docker-compose -f docker-compose-v2.yml up -d
+
+Stop:
+  $ make down-v2
+  $ docker-compose -f docker-compose-v2.yml down
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 CONTEÚDO DO DOCKERFILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Base Image:
+  python:3.10-slim
+
+System Packages:
+  ✓ tesseract-ocr (para OCR)
+  ✓ tesseract-ocr-por (idioma português)
+  ✓ libgl1 (OpenCV)
+  ✓ libglib2.0-0 (dependência YOLO)
+  ✓ curl (healthcheck)
+
+Python Packages (requirements.txt):
+  ✓ fastapi, uvicorn (API)
+  ✓ ultralytics (YOLO)
+  ✓ paddleocr, easyocr (OCR)
+  ✓ opencv-python (processamento imagem)
+  ✓ torch (deep learning)
+  ✓ transformers (modelos modernos)
+
+Estrutura de Pastas:
+  /app/               → Root
+  /app/api.py         → Legacy API
+  /app/src/           → Source code
+  /app/pipelines/     → Modern pipelines
+  /app/examples/      → Test images
+  /app/models/        → Model weights
+  /app/uploads/       → Upload temp
+  /app/outputs/       → Results
+
+Porta Exposta:
+  8000
+
+Comando Default (Legacy):
+  uvicorn api:app --host 0.0.0.0 --port 8000
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 COMANDOS DOCKER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌──────────────────────────────────────────────────────────────┐
+│ BÁSICO                                                       │
+└──────────────────────────────────────────────────────────────┘
+
+# Build da imagem
+make build              # Legacy
+make build-v2           # Modern
+
+# Subir container
+make up                 # Legacy (porta 8000)
+make up-v2              # Modern (porta 8000)
+
+# Parar container
+make down               # Legacy
+make down-v2            # Modern
+
+# Ver logs
+make logs               # Legacy
+make logs-v2            # Modern
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ AVANÇADO                                                     │
+└──────────────────────────────────────────────────────────────┘
+
+# Build e teste completo
+make test-docker
+./test_docker.sh
+
+# Ver logs em tempo real
+docker-compose logs -f
+
+# Entrar no container
+docker exec -it flyer-understanding-api bash
+
+# Inspecionar imagem
+docker images | grep flyer
+docker inspect flyer-understanding-api:latest
+
+# Ver containers rodando
+docker ps
+
+# Reiniciar container
+docker-compose restart
+
+# Rebuild sem cache
+docker-compose build --no-cache
+
+# Remover tudo (limpar)
+make clean-docker
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ HEALTHCHECK                                                  │
+└──────────────────────────────────────────────────────────────┘
+
+# Dentro do Makefile
+make health
+
+# Manualmente
+curl http://localhost:8000/health
+
+# Ver status do healthcheck
+docker ps
+# Olhar coluna STATUS: "healthy" ou "unhealthy"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧪 TESTAR IMAGEM DOCKER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Método 1 - Script Automático:
+────────────────────────────
+$ make test-docker
+
+Ou:
+$ ./test_docker.sh
+
+O que faz:
+  1. Build da imagem
+  2. Sobe container
+  3. Aguarda API ficar pronta
+  4. Testa endpoint com imagem exemplo
+  5. Mostra resultado
+
+
+Método 2 - Manual:
+─────────────────
+# 1. Build
+$ make build
+
+# 2. Subir
+$ make up
+
+# 3. Testar health
+$ curl http://localhost:8000/health
+
+# 4. Testar com imagem
+$ curl -X POST http://localhost:8000/analyze-flyer \
+    -F "file=@examples/image_example.png" \
+    | python -m json.tool
+
+
+Método 3 - Navegador:
+────────────────────
+$ make up
+
+Abrir: http://localhost:8000/docs
+
+Testar endpoint visualmente com Swagger UI
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 CONFIGURAÇÃO - docker-compose.yml
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+version: '3.8'
+
+services:
+  flyer-api:
+    build: .
+    image: flyer-understanding-api:latest
+    container_name: flyer-understanding-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./examples:/app/examples:ro     # Read-only
+      - ./models:/app/models            # Read-write
+      - ./uploads:/app/uploads          # Temp uploads
+    environment:
+      - USE_GPU=false
+      - YOLO_CONFIDENCE=0.25
+      - OCR_LANG=pt
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
+Personalização:
+──────────────
+
+Mudar porta:
+  ports:
+    - "9000:8000"    # Host:Container
+
+Usar GPU (se disponível):
+  environment:
+    - USE_GPU=true
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+
+Adicionar volume para outputs:
+  volumes:
+    - ./outputs:/app/outputs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 COMPARAÇÃO: Local vs Docker
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Característica      │  Local (make run)  │  Docker (make up)
+────────────────────┼────────────────────┼───────────────────
+Setup inicial       │  pip install       │  docker build
+Tempo de build      │  -                 │  5-10 min
+Isolamento          │  ❌                │  ✅
+Portabilidade       │  ❌                │  ✅
+Produção            │  ❌                │  ✅
+Desenvolvimento     │  ✅ Rápido         │  ⚠️ Rebuild
+Debug               │  ✅ Fácil          │  ⚠️ Logs
+Performance         │  ✅ Nativo         │  ⚠️ Overhead mínimo
+Dependências        │  Sistema host      │  Containerizado
+Conflitos           │  Possível          │  Impossível
+CI/CD               │  ⚠️                │  ✅ Ideal
+
+Recomendação:
+  • Desenvolvimento: make run (local)
+  • Produção: make up (Docker)
+  • CI/CD: Docker sempre
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 BOAS PRÁTICAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ DO:
+
+1. Use multi-stage builds para imagens menores
+2. Configure healthcheck sempre
+3. Use volumes para dados persistentes
+4. Configure restart policy (unless-stopped)
+5. Use .dockerignore para excluir arquivos
+6. Limite recursos (CPU/RAM) se necessário
+7. Use tags versionadas (v1.0, v2.0)
+8. Monitore logs: docker-compose logs -f
+
+❌ DON'T:
+
+1. Não inclua secrets nas variáveis de ambiente
+2. Não rode como root (configure USER)
+3. Não use :latest em produção
+4. Não faça bind de portas sensíveis
+5. Não ignore healthchecks
+6. Não use volumes desnecessários
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema: Build falha
+Solução:
+  $ docker-compose build --no-cache
+  $ make clean-docker && make build
+
+
+Problema: Container não inicia
+Solução:
+  $ docker-compose logs
+  $ docker ps -a  # Ver containers parados
+
+
+Problema: Porta 8000 em uso
+Solução:
+  # Mudar porta no docker-compose.yml
+  ports:
+    - "8001:8000"
+
+
+Problema: API retorna 503 (unhealthy)
+Solução:
+  $ docker-compose logs -f
+  # Aguardar start_period (40s)
+  # Verificar dependências instaladas
+
+
+Problema: Imagem muito grande
+Solução:
+  # Use alpine base (mais leve)
+  # Remove arquivos cache
+  # Use multi-stage build
+
+
+Problema: Lentidão no container
+Solução:
+  # Alocar mais recursos
+  deploy:
+    resources:
+      limits:
+        cpus: '2'
+        memory: 4G
+
+
+Problema: Não encontra modelo YOLO
+Solução:
+  # Verificar volume montado
+  $ docker exec -it flyer-understanding-api ls -la /app/models
+  # Baixar modelo
+  $ docker exec -it flyer-understanding-api wget https://...
+
+
+Problema: Permissões em volumes
+Solução:
+  $ sudo chown -R $USER:$USER ./models ./uploads
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚢 DEPLOY EM PRODUÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Opção 1 - Docker Compose (Servidor Único):
+──────────────────────────────────────────
+$ docker-compose up -d
+$ docker-compose ps
+$ docker-compose logs -f
+
+
+Opção 2 - Docker Swarm (Multi-Node):
+────────────────────────────────────
+$ docker swarm init
+$ docker stack deploy -c docker-compose.yml flyer-api
+$ docker service ls
+
+
+Opção 3 - Kubernetes:
+────────────────────
+# Criar deployment.yaml
+# kubectl apply -f deployment.yaml
+
+
+Opção 4 - Cloud Providers:
+──────────────────────────
+
+AWS ECS:
+  $ aws ecs create-cluster ...
+
+Google Cloud Run:
+  $ gcloud run deploy ...
+
+Azure Container Instances:
+  $ az container create ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 MONITORAMENTO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ver logs:
+  $ docker-compose logs -f
+
+Ver recursos:
+  $ docker stats flyer-understanding-api
+
+Métricas:
+  http://localhost:8000/health
+  
+  Response:
+  {
+    "status": "healthy",
+    "timestamp": "2026-03-05T...",
+    "components": {...}
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CHECKLIST FINAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Antes de ir para produção:
+
+□ Build da imagem funcionou
+   $ make build
+
+□ Container sobe sem erros
+   $ make up
+
+□ Healthcheck passa
+   $ curl http://localhost:8000/health
+
+□ API responde corretamente
+   $ curl -X POST http://localhost:8000/analyze-flyer \
+       -F "file=@examples/image_example.png"
+
+□ Logs não mostram erros
+   $ make logs
+
+□ Volumes estão montados
+   $ docker exec -it flyer-understanding-api ls -la /app
+
+□ Restart policy configurado
+   restart: unless-stopped
+
+□ Recursos limitados (opcional)
+   deploy.resources.limits
+
+□ Backup de dados importantes
+   volumes: ./models:/app/models
+
+□ Documentação atualizada
+   Este arquivo! ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║                  🎉 IMAGEM DOCKER PRONTA! 🎉                ║
+║                                                              ║
+║  Execute agora:                                              ║
+║                                                              ║
+║      make build && make up                                   ║
+║                                                              ║
+║  Ou teste completo:                                          ║
+║                                                              ║
+║      make test-docker                                        ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝

@@ -1,0 +1,53 @@
+╔═══════════════════════════════════════════════╗
+║   🐳 DOCKER - STATUS DO BUILD                ║
+╚═══════════════════════════════════════════════╝
+
+🔧 CORREÇÕES APLICADAS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ requirements.txt
+   - paddlepaddle: 2.6.0 → >=2.6.2
+   - opencv-python: 4.9.0.80 → 4.6.0.66 (compatibilidade)
+
+✅ docker-compose.yml
+   - Porta mudada: 8000 → 8001 (conflito resolvido)
+
+✅ src/detectors/yolo_layout_detector.py
+   - Adicionado fix para PyTorch 2.6+
+   - torch.serialization.add_safe_globals()
+
+⏳ BUILD EM ANDAMENTO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Comando: docker-compose build --no-cache
+
+Tempo estimado: 3-5 minutos
+
+Aguarde...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 PRÓXIMOS PASSOS após build completar:
+
+1. Verificar logs:
+   docker logs flyer-understanding-api
+
+2. Testar health:
+   curl http://localhost:8001/health
+
+3. Testar com imagem:
+   curl -X POST http://localhost:8001/analyze-flyer \
+     -F "file=@examples/image_example.png"
+
+4. Acessar docs:
+   http://localhost:8001/docs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 PORTA ALTERADA:
+   Antigamente: 8000
+   Agora: 8001
+
+   Motivo: Conflito com outro serviço
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
