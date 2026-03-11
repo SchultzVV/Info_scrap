@@ -12,8 +12,9 @@ WORKDIR /app
 COPY requirements-simple.txt .
 RUN pip install --no-cache-dir -r requirements-simple.txt
 
-# Copy API
+# Copy API and analyzer
 COPY api_simple.py .
+COPY analyzer.py .
 
 EXPOSE 8000
 

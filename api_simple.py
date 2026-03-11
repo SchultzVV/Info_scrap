@@ -1,6 +1,7 @@
 """
 Simple Image OCR API
 Single endpoint: POST /extract - receives image, returns text
+Advanced endpoint: POST /analyze - advanced analysis with ROI, proximity, and validation
 """
 
 from fastapi import FastAPI, UploadFile, File
@@ -9,11 +10,16 @@ import pytesseract
 from PIL import Image
 import io
 
+from analyzer import AdvancedImageAnalyzer
+
 app = FastAPI(
     title="Simple OCR API",
-    description="Extract text from images",
-    version="1.0.0"
+    description="Extract text from images with basic and advanced endpoints",
+    version="2.0.0"
 )
+
+# Initialize advanced analyzer
+analyzer = AdvancedImageAnalyzer()
 
 @app.get("/health")
 def health():
@@ -57,6 +63,47 @@ async def extract_text(file: UploadFile = File(...)):
                 "error": str(e)
             }
         )
+
+
+@app.post("/analyze")
+async def analyze_image(file: UploadFile = File(...)):
+    """
+    Advanced image analysis with:
+    - ROI (Region of Interest) detection
+    - Text extraction with bounding boxes
+    - Price-title proximity analysis
+    - Validation and normalization
+    - Structured product information
+    
+    Args:
+        file: Image file (PNG, JPG, etc)
+    
+    Returns:
+        JSON with structured product information:
+        - ROIs detected in the image
+        - Products with linked prices
+        - Validation status
+        - Normalized price values
+    """
+    try:
+        # Read image data
+        contents = await file.read()
+        
+        # Run advanced analysis
+        result = analyzer.analyze_image(contents)
+        
+        return result
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+        )
+
 
 if __name__ == "__main__":
     import uvicorn
