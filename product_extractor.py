@@ -38,13 +38,14 @@ def _bgr_to_pil(bgr: np.ndarray) -> Image.Image:
 
 def _extract_price_value(text: str) -> Optional[float]:
     """
-    Parse Brazilian price text to float.
+    Parse Brazilian price text to float, handling OCR corruption.
 
     Examples:
         "R$ 4.475,00" -> 4475.0
         "4.475,00"    -> 4475.0
         "4475"        -> 4475.0
         "a$ 5.799,00" -> 5799.0  (OCR artifact for strikethrough price)
+        "4,3408054"   -> 4340.80 (OCR garbled: "4,3408054" was "4.340,80" with extra digits)
     """
     cleaned = re.sub(r'[RrAa]\$', '', text).strip()
     cleaned = re.sub(r'[a-zA-Z]', '', cleaned).strip()
@@ -52,6 +53,24 @@ def _extract_price_value(text: str) -> Optional[float]:
 
     if not cleaned:
         return None
+
+    # Handle OCR corruption: if single comma/dot with 4+ digits after it, 
+    # likely comma is thousands separator and OCR repeated/corrupted trailing digits.
+    # Example: "4,3408054" should be "4.340,80" → extract "4340.80"
+    if (',' in cleaned or '.' in cleaned) and not (',' in cleaned and '.' in cleaned):
+        sep = ',' if ',' in cleaned else '.'
+        parts = cleaned.split(sep)
+        if len(parts) == 2 and len(parts[1]) >= 4:
+            # OCR corruption: take first 3 digits after sep as thousands, last 2 as decimals
+            # "4,3408054" → "4" + "340" + "80" = "4340.80"
+            left = parts[0]
+            right = parts[1]
+            rebuilt = left + right[:3] + '.' + right[-2:]
+            cleaned = rebuilt
+            try:
+                return float(cleaned)
+            except ValueError:
+                pass
 
     if '.' in cleaned and ',' in cleaned:
         cleaned = cleaned.replace('.', '').replace(',', '.')
@@ -293,9 +312,10 @@ class ProductExtractor:
     _BROKEN_INST_RE = re.compile(r'[xX]\s*[Rr]\$?\s*(\d{4,6})')
 
     # Standalone R$ price (not part of an installment already handled above)
-    # Uses \d+ (greedy) so "R$5799" captures "5799" not just "579"
+    # Captures any sequence of digits/dots/commas after R$ (greedy)
+    # Examples: "R$5799", "R$ 4,340", "R$ 4,3408054", "R$ 4.475,00"
     _STANDALONE_PRICE_RE = re.compile(
-        r'R\$\s*(\d+(?:[.,]\d{3})*(?:[.,]\d{2})?)',
+        r'R\$\s*([\d.,]+)',
         re.IGNORECASE,
     )
     # OCR artifact for strikethrough price: "a$5709"  "a$ 5.799"
@@ -331,7 +351,8 @@ class ProductExtractor:
         for m in self._BROKEN_INST_RE.finditer(full_text):
             installment_spans.append((m.start(), m.end()))
         # Also mark payment alternatives: "ou R$ XXXX em Nx"
-        alt_payment_re = re.compile(r'\bou\s+R\$\s*[\d.,]+\s+em\s+\d+\s*[xX]', re.IGNORECASE)
+        # Uses .{0,5} to skip over OCR artifacts like degree symbol (°)
+        alt_payment_re = re.compile(r'\bou\s+R\$\s*[\d.,]+.{0,5}em\s+\d+\s*[xX]', re.IGNORECASE)
         for m in alt_payment_re.finditer(full_text):
             installment_spans.append((m.start(), m.end()))
 
