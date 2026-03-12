@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements-simple.txt
 COPY api_simple.py .
 COPY analyzer.py .
 COPY ecommerce_parser.py .
+COPY product_extractor.py .
 
 EXPOSE 8000
 

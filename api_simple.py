@@ -12,6 +12,7 @@ import io
 
 from analyzer import AdvancedImageAnalyzer
 from ecommerce_parser import EcommerceParser
+from product_extractor import ProductExtractor
 
 app = FastAPI(
     title="Simple OCR API",
@@ -24,6 +25,9 @@ analyzer = AdvancedImageAnalyzer()
 
 # Initialize e-commerce parser
 ecommerce_parser = EcommerceParser()
+
+# Initialize product extractor (classical CV pipeline)
+product_extractor = ProductExtractor()
 
 @app.get("/health")
 def health():
@@ -141,6 +145,43 @@ async def analyze_image(file: UploadFile = File(...)):
                 "error": str(e),
                 "error_type": type(e).__name__
             }
+        )
+
+
+@app.post("/product")
+async def extract_product(file: UploadFile = File(...)):
+    """
+    Structured product extraction using classical CV.
+
+    Pipeline:
+      1. ROI detection  – find the product info panel via text-density contours
+      2. Price CV       – strikethrough detection + OCR-artifact + value ordering
+                          → identifies promotional price, old price, or regular price
+      3. Title          – longest high-scoring text line in the upper ROI region
+      4. Stock/avail.   – regex patterns on full-image OCR text
+
+    Returns:
+        {
+          "title"      : str,
+          "price"      : "R$ NNNN.NN",
+          "oldPrice"   : "R$ NNNN.NN" | null,
+          "disponivel" : bool,
+          "via_webhook": false,
+          "stock"      : int | null
+        }
+    """
+    try:
+        contents = await file.read()
+        result = product_extractor.extract(contents)
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
         )
 
 
