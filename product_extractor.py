@@ -154,21 +154,41 @@ class ProductExtractor:
         full_text = pytesseract.image_to_string(pil_img, lang="por+eng")
         lines = [l.strip() for l in full_text.split("\n") if l.strip()]
 
-        # ── Step 2: Price extraction (EcommerceParser → regex, robust) ─────────
-        ep = self._parser.parse(full_text, lines).get("product", {})
-        current_price = ep["current_price"]["value"] if ep.get("current_price") else None
-        old_price     = ep["old_price"]["value"]     if ep.get("old_price")     else None
+        # ── Step 2a: Find title first (anchor for price region) ────────────────
+        title = self._find_title_using_heuristics(lines)
 
-        # Fallback: AdvancedImageAnalyzer (strikethrough CV)
+        # ── Step 2b: Price extraction (filter by region after title) ──────────
+        current_price = None
+        old_price = None
+        if title:
+            # Extract prices only after the title line
+            title_idx = next((i for i, line in enumerate(lines) if title in line), None)
+            if title_idx is not None:
+                after_title_text = "\n".join(lines[title_idx:])
+                prices = self._extract_main_prices(after_title_text, lines[title_idx:])
+                
+                # Assign prices based on scenario
+                if len(prices) >= 2:
+                    # Scenario 2 or 3: we have old and current price
+                    old_price = prices[0]  # Higher value
+                    current_price = prices[1]  # Lower value
+                elif len(prices) == 1:
+                    # Scenario 1 or 4: only one price or only installment total
+                    current_price = prices[0]
+        
+        # Fallback: try full-text extraction if title-based didn't work
         if current_price is None:
-            ap = self._analyzer.analyze_image(image_data).get("product", {})
-            current_price = ap["current_price"]["value"] if ap.get("current_price") else None
-            old_price     = ap["old_price"]["value"]     if ap.get("old_price")     else None
+            ep = self._parser.parse(full_text, lines).get("product", {})
+            current_price = ep["current_price"]["value"] if ep.get("current_price") else None
+            old_price     = ep["old_price"]["value"]     if ep.get("old_price")     else None
 
-        # ── Step 3: Title — look in the OCR lines just before the first price ───
-        title = self._find_title_near_price_in_text(lines, current_price, old_price)
+            # Fallback: AdvancedImageAnalyzer (strikethrough CV)
+            if current_price is None:
+                ap = self._analyzer.analyze_image(image_data).get("product", {})
+                current_price = ap["current_price"]["value"] if ap.get("current_price") else None
+                old_price     = ap["old_price"]["value"]     if ap.get("old_price")     else None
 
-        # ── Step 4: Stock / availability ───────────────────────────────────
+        # ── Step 3: Stock / availability ───────────────────────────────────
         stock = self._parse_stock(full_text)
 
         return {
@@ -181,8 +201,191 @@ class ProductExtractor:
         }
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Title extraction  – text-proximity search (no extra OCR pass needed)
+    # Title extraction  – improved heuristics (no price dependency)
     # ─────────────────────────────────────────────────────────────────────────
+
+    # Navigation/UI words that never appear in product titles
+    _NAV_MARKERS = [
+        'buscar', 'seguidor', 'seguindo', 'seguir', 'apartir', 'para voc',
+        'mais vendido', 'ofertas', 'cookies', 'privacidade', 'usamos',
+        'configurar', 'aceitar', 'ptz', 'menu', 'carrinho', 'entrar',
+        'cadastro', 'frete grátis', 'frete gratis', 'ir para produto',
+        'sem juros', 'mercado pago', 'curadoria',
+        # CEP / delivery modal
+        'inclua seu cep', 'confira o envio', 'prazos de entrega',
+        'custos e', 'mais tarde',
+    ]
+
+    def _find_title_using_heuristics(self, lines: List[str]) -> Optional[str]:
+        """
+        Find product title.
+
+        Strategy:
+        1. Anchor on the first substantial price line (R$ >= 100).
+        2. Search ONLY in lines BEFORE that anchor (titles always appear above prices).
+        3. Apply hard filters to remove nav/UI lines.
+        4. Score survivors; merge continuation lines ending with '-'.
+
+        Hard filters (any one disqualifies a line):
+        - Contains 'R$' or 'a$'    → price line
+        - Contains '>'              → breadcrumb
+        - Contains '@'             → store badge / social
+        - Matches a nav/UI marker  → navigation bar
+        - Fewer than 10 alpha chars or fewer than 3 words
+        """
+        # Step 1: find the price anchor (first R$ line with value >= 100)
+        price_anchor_idx: Optional[int] = None
+        for i, line in enumerate(lines):
+            if re.search(r'R\$', line, re.IGNORECASE):
+                val = _extract_price_value(line)
+                if val and val >= 100:
+                    price_anchor_idx = i
+                    break
+
+        # Search window: lines before the price anchor (or all lines if no anchor)
+        search_range = lines[:price_anchor_idx] if price_anchor_idx else lines
+
+        candidates = []
+        for orig_idx, line in enumerate(search_range):
+            line_lower = line.lower()
+
+            # Hard filters
+            if re.search(r'[Rr]\$|[Aa]\$', line):          # price line
+                continue
+            if '>' in line:                                   # breadcrumb
+                continue
+            if '@' in line:                                   # badge / social
+                continue
+            if any(m in line_lower for m in self._NAV_MARKERS):
+                continue
+
+            alpha_chars = [c for c in line if c.isalpha()]
+            if len(alpha_chars) < 10:
+                continue
+            if len(line.split()) < 3:
+                continue
+
+            score = len(alpha_chars) + len(line.split()) * 2
+            candidates.append((score, orig_idx, line))
+
+        if not candidates:
+            return None
+
+        candidates.sort(reverse=True)
+        best_score, best_idx, best = candidates[0]
+
+        # Merge continuation line (ends with '-')
+        if best.rstrip().endswith('-') and best_idx + 1 < len(lines):
+            nxt = lines[best_idx + 1]
+            if nxt and '@' not in nxt and not re.search(r'[Rr]\$', nxt):
+                best = best.rstrip() + ' ' + nxt
+
+        return best
+
+    # ── Regex constants for price extraction ───────────────────────────────
+    # Matches installment patterns – these are ALWAYS skipped:
+    #   "21x R$ 185,44"  "12x R$ 372"  "12 x R$ 372,50"
+    _INSTALLMENT_RE = re.compile(
+        r'\d+\s*[xX]\s*(?:R\$|[Rr]?\$)\s*\d+(?:[,\.]\d{1,2})?',
+        re.IGNORECASE,
+    )
+    # Matches split OCR installment: "xR 21728"  "xR$ 21728"
+    _BROKEN_INST_RE = re.compile(r'[xX]\s*[Rr]\$?\s*(\d{4,6})')
+
+    # Standalone R$ price (not part of an installment already handled above)
+    # Uses \d+ (greedy) so "R$5799" captures "5799" not just "579"
+    _STANDALONE_PRICE_RE = re.compile(
+        r'R\$\s*(\d+(?:[.,]\d{3})*(?:[.,]\d{2})?)',
+        re.IGNORECASE,
+    )
+    # OCR artifact for strikethrough price: "a$5709"  "a$ 5.799"
+    # Uses \d+ so "a$5709" captures "5709" not "570"
+    _ARTIFACT_PRICE_RE = re.compile(
+        r'[Aa]\$\s*(\d+(?:[.,]\d{3})*(?:[.,]\d{2})?)',
+    )
+    # Orphan number on its own line: "816728," → old price
+    _ORPHAN_NUM_RE = re.compile(r'^(\d{4,7})[,\.]?\s*$')
+
+    def _extract_main_prices(self, text: str, lines: List[str]) -> List[float]:
+        """
+        Extract product prices with these strict rules:
+
+        1. Installment values (Nx R$) are ALWAYS ignored — never become a price.
+        2. Standalone R$ values that are NOT part of an installment → main prices.
+        3. 'a$XXXX' OCR artifact (strikethrough) → old price candidate.
+        4. Orphan number on its own line (e.g. '816728,') → old price candidate.
+        5. If 2+ main prices: higher = old, lower = current.
+        6. If 1 main price: current only (no old price).
+        """
+        full_text = "\n".join(lines) if isinstance(lines, list) else text
+        seen: set = set()
+        main_prices: List[float] = []
+        old_candidates: List[float] = []   # from artifacts / orphan numbers
+
+        # ── Step 1: mark installment spans to exclude them ───────────────────
+        installment_spans: List[Tuple[int, int]] = []
+        for m in self._INSTALLMENT_RE.finditer(full_text):
+            installment_spans.append((m.start(), m.end()))
+        # Also mark broken OCR installment spans ("xR 21728")
+        for m in self._BROKEN_INST_RE.finditer(full_text):
+            installment_spans.append((m.start(), m.end()))
+
+        def _in_installment(pos: int) -> bool:
+            return any(s <= pos < e for s, e in installment_spans)
+
+        # ── Step 2: collect standalone R$ prices ────────────────────────────
+        for m in self._STANDALONE_PRICE_RE.finditer(full_text):
+            if _in_installment(m.start()):
+                continue
+            val = _extract_price_value(f"R${m.group(1)}")
+            if val and 100 <= val <= 100_000 and val not in seen:
+                seen.add(val)
+                main_prices.append(val)
+
+        # ── Step 3: collect OCR artifact 'a$XXXX' as old price candidate ────
+        for m in self._ARTIFACT_PRICE_RE.finditer(full_text):
+            val = _extract_price_value(f"R${m.group(1)}")
+            if val and 100 <= val <= 100_000 and val not in seen:
+                seen.add(val)
+                old_candidates.append(val)
+
+        # ── Step 4: collect orphan numbers as old price candidate ────────────
+        for line in lines if isinstance(lines, list) else full_text.split('\n'):
+            m = self._ORPHAN_NUM_RE.match(line.strip())
+            if not m:
+                continue
+            raw = m.group(1)
+            # Try interpretation: remove leading digit if 6-7 chars → XXXX.XX
+            for candidate_str in [
+                raw[1:] if len(raw) >= 6 else None,  # strip leading noise digit
+                raw,
+            ]:
+                if not candidate_str or len(candidate_str) < 4:
+                    continue
+                parsed = candidate_str[:-2] + '.' + candidate_str[-2:]
+                try:
+                    val = float(parsed)
+                except ValueError:
+                    continue
+                if 50 <= val <= 100_000 and val not in seen:
+                    seen.add(val)
+                    old_candidates.append(val)
+                    break
+
+        # ── Step 5: resolve scenarios ─────────────────────────────────────
+        main_prices.sort(reverse=True)   # highest first
+
+        if len(main_prices) >= 2:
+            # Two explicit R$ prices → higher = old, lower = current
+            return [main_prices[0], main_prices[1]]
+
+        if len(main_prices) == 1 and old_candidates:
+            # One R$ price + artifact/orphan → artifact is old price
+            best_old = max(old_candidates)
+            if best_old > main_prices[0]:
+                return [best_old, main_prices[0]]
+
+        return main_prices   # [current] or []
 
     # Price pattern used to identify the price anchor line
     _PRICE_RE = re.compile(
