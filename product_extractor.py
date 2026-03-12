@@ -311,11 +311,12 @@ class ProductExtractor:
         Extract product prices with these strict rules:
 
         1. Installment values (Nx R$) are ALWAYS ignored — never become a price.
-        2. Standalone R$ values that are NOT part of an installment → main prices.
-        3. 'a$XXXX' OCR artifact (strikethrough) → old price candidate.
-        4. Orphan number on its own line (e.g. '816728,') → old price candidate.
-        5. If 2+ main prices: higher = old, lower = current.
-        6. If 1 main price: current only (no old price).
+        2. Payment alternatives ("ou R$ XXXX em Nx") are ALWAYS ignored.
+        3. Standalone R$ values that are NOT part of installment/alternative → main prices.
+        4. 'a$XXXX' OCR artifact (strikethrough) → old price candidate.
+        5. Orphan number on its own line (e.g. '816728,') → old price candidate.
+        6. If 2+ main prices: higher = old, lower = current.
+        7. If 1 main price: current only (no old price).
         """
         full_text = "\n".join(lines) if isinstance(lines, list) else text
         seen: set = set()
@@ -328,6 +329,10 @@ class ProductExtractor:
             installment_spans.append((m.start(), m.end()))
         # Also mark broken OCR installment spans ("xR 21728")
         for m in self._BROKEN_INST_RE.finditer(full_text):
+            installment_spans.append((m.start(), m.end()))
+        # Also mark payment alternatives: "ou R$ XXXX em Nx"
+        alt_payment_re = re.compile(r'\bou\s+R\$\s*[\d.,]+\s+em\s+\d+\s*[xX]', re.IGNORECASE)
+        for m in alt_payment_re.finditer(full_text):
             installment_spans.append((m.start(), m.end()))
 
         def _in_installment(pos: int) -> bool:
