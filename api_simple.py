@@ -11,6 +11,7 @@ from PIL import Image
 import io
 
 from analyzer import AdvancedImageAnalyzer
+from ecommerce_parser import EcommerceParser
 
 app = FastAPI(
     title="Simple OCR API",
@@ -20,6 +21,9 @@ app = FastAPI(
 
 # Initialize advanced analyzer
 analyzer = AdvancedImageAnalyzer()
+
+# Initialize e-commerce parser
+ecommerce_parser = EcommerceParser()
 
 @app.get("/health")
 def health():
@@ -68,31 +72,66 @@ async def extract_text(file: UploadFile = File(...)):
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     """
-    Advanced image analysis with:
-    - ROI (Region of Interest) detection
-    - Text extraction with bounding boxes
-    - Price-title proximity analysis
-    - Validation and normalization
-    - Structured product information
+    Advanced image analysis with automatic detection:
+    
+    - For product images: ROI detection, proximity analysis, validation
+    - For e-commerce pages: Intelligent parsing with price inference
+    
+    Automatically detects:
+    - Product cards (isolated products)
+    - E-commerce screenshots (Mercado Livre, Amazon, etc)
     
     Args:
         file: Image file (PNG, JPG, etc)
     
     Returns:
-        JSON with structured product information:
-        - ROIs detected in the image
-        - Products with linked prices
-        - Validation status
-        - Normalized price values
+        JSON with structured product information (simplified for end users)
     """
     try:
         # Read image data
         contents = await file.read()
         
-        # Run advanced analysis
+        # Try advanced ROI-based analysis first
         result = analyzer.analyze_image(contents)
         
-        return result
+        # Check if ROI analysis found prices
+        has_prices = (
+            result.get('product', {}).get('current_price') is not None or
+            result.get('product', {}).get('old_price') is not None
+        )
+        
+        # If no prices found, try e-commerce parser
+        if not has_prices:
+            # Extract text for e-commerce parsing
+            image = Image.open(io.BytesIO(contents))
+            text = pytesseract.image_to_string(image, lang='por+eng')
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            
+            # Parse with e-commerce parser
+            ecommerce_result = ecommerce_parser.parse(text, lines)
+            
+            # If e-commerce parser found prices, use that result
+            if ecommerce_result.get('product', {}).get('current_price'):
+                result = ecommerce_result
+        
+        # Simplify response for end users
+        product = result.get('product', {})
+        simplified_response = {
+            "success": True,
+            "product": {
+                "title": product.get('title'),
+                "old_price": product.get('old_price'),
+                "current_price": product.get('current_price'),
+                "installment": product.get('installment'),
+                "discount": product.get('discount'),
+            }
+        }
+        
+        # Add shipping if available (from e-commerce parser)
+        if product.get('shipping'):
+            simplified_response['product']['shipping'] = product.get('shipping')
+        
+        return simplified_response
         
     except Exception as e:
         return JSONResponse(
