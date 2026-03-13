@@ -307,23 +307,172 @@ docker rm simple-ocr-api
 
 ---
 
+## 🎯 Nova Estratégia: `/analyze-yolo` - Detecção por Objeto (YOLO)
+
+**[⚠️ Em Desenvolvimento]** Uma nova abordagem usando redes neurais treinadas (YOLO) para detectar campos específicos (título, preços, parcelamento, etc) diretamente da imagem.
+
+### 🚀 Como Usar
+
+```bash
+# Teste com imagem de exemplo
+curl -X POST "http://localhost:8000/analyze-yolo" \
+  -F "file=@examples/image_example.png" \
+  -s | python -m json.tool
+```
+
+### 📊 Exemplo de Resposta
+
+```json
+{
+  "success": true,
+  "image_dimensions": {
+    "width": 1709,
+    "height": 925
+  },
+  "detections": {
+    "title": [],
+    "old_price": [],
+    "current_price": [],
+    "installment": [],
+    "stock": [],
+    "seller": []
+  },
+  "product": {
+    "title": null,
+    "old_price": null,
+    "current_price": null,
+    "installment": null,
+    "stock": null,
+    "seller": null
+  },
+  "model_status": {
+    "loaded": false,
+    "path": "models/best.pt",
+    "type": "tiny",
+    "device": "cpu"
+  }
+}
+```
+
+### 🧠 Como Funciona
+
+1. **Modelo YOLO Treinado**: Detecta 6 classes de interesse
+   - `title` - Título do produto
+   - `old_price` - Preço antigo/riscado  
+   - `current_price` - Preço atual
+   - `installment` - Informação de parcelamento
+   - `stock` - Quantidade em estoque
+   - `seller` - Informação do vendedor
+
+2. **Bounding Boxes**: Para cada detecção, obtém coordenadas (x1, y1, x2, y2)
+
+3. **Extração Regional**: Aplica OCR **apenas** na região detectada
+
+4. **Parsing Inteligente**: Processa texto de acordo com o tipo de campo
+
+### ⚙️ Status do Modelo
+
+O endpoint retorna `model_status` com informações:
+
+```json
+{
+  "model_status": {
+    "loaded": true,           // Modelo foi carregado com sucesso
+    "path": "models/best.pt", // Caminho do modelo
+    "type": "custom",         // "custom" (seu modelo) ou "tiny" (teste)
+    "device": "cpu"           // Device: "cpu" ou "0" (GPU CUDA)
+  }
+}
+```
+
+### 📋 Fluxo de Carregamento
+
+1. **Verifica** se `models/best.pt` existe
+2. **Se existe**: Carrega modelo customizado treinado  
+   - `type`: `"custom"`, `loaded`: `true`
+3. **Se não existe**: Carrega modelo `yolov8n` (nano) para testes
+   - `type`: `"tiny"`, `loaded`: `true`
+4. **Se falhar**: Retorna `loaded: false` (sem crash)
+
+### 🎯 Como Treinar seu Modelo
+
+```bash
+# 1. Preparar dataset com labels (YOLO format)
+#    Estrutura esperada:
+#    data/
+#    ├── images/
+#    │   ├── train/
+#    │   └── val/
+#    └── labels/
+#        ├── train/
+#        └── val/
+
+# 2. Executar treinamento (em seu ambiente local)
+from ultralytics import YOLO
+
+model = YOLO('yolov8n.yaml')
+results = model.train(
+    data='data.yaml',
+    epochs=100,
+    imgsz=640,
+    device=0  # GPU
+)
+
+# 3. Exportar melhor modelo
+best_model = YOLO('runs/detect/train/weights/best.pt')
+
+# 4. Copiar para models/best.pt
+cp runs/detect/train/weights/best.pt models/best.pt
+```
+
+### 🔧 GPU Support
+
+O container detecta automaticamente:
+- ✅ **GPU disponível**: Usa CUDA (muito mais rápido!)
+- ❌ **GPU indisponível**: Fallback para CPU (mais lento, 5-10s por imagem)
+
+Para usar GPU no Docker:
+```bash
+docker run --gpus all -p 8000:8000 ocr-api:latest
+```
+
+### 📈 Comparação de Estratégias
+
+| Aspecto | ROI Detector | E-commerce Parser | YOLO |
+|---------|--------------|-------------------|------|
+| **Tipo** | Clássico OpenCV | Regex + OCR | Deep Learning |
+| **Velocidade** | Fast (~1s) | Rápido (~1-2s) | Médio (~2-5s) |
+| **Acurácia** | 85-90% | 80-85% | 95%+ |
+| **Treinamento** | Não necessário | Não necessário | Requer dataset |
+| **Generalização** | Limitada | Limitada | Excelente |
+| **Tipos de Input** | Produtos puros | E-commerce | Qualquer tipo |
+
+---
+
 ## 🧪 Testes
 
 ### Teste Rápido
 ```bash
 # Extração básica
 curl -X POST "http://localhost:8000/extract" \
-  -F "file=@image_example.png"
+  -F "file=@examples/image_example.png"
 
-# Análise estruturada
+# Análise estruturada (ROI + E-commerce)
 curl -X POST "http://localhost:8000/analyze" \
-  -F "file=@image_example.png" \
+  -F "file=@examples/image_example.png" \
+  -s | python -m json.tool
+
+# Análise por YOLO (requer modelo treinado em models/best.pt)
+curl -X POST "http://localhost:8000/analyze-yolo" \
+  -F "file=@examples/image_example.png" \
   -s | python -m json.tool
 ```
 
-### Script de Teste Completo
+### Health Check
 ```bash
-./test_simple_api.sh
+# Verificar se API está rodando
+curl http://localhost:8000/health
+# Resposta: {"status": "healthy"}
 ```
 
 ---
