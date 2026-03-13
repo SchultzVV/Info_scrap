@@ -54,18 +54,20 @@ def _extract_price_value(text: str) -> Optional[float]:
     if not cleaned:
         return None
 
-    # Handle OCR corruption: if single comma/dot with 4+ digits after it, 
+    # Handle OCR corruption: if single comma/dot with 4+ digits after it,
     # likely comma is thousands separator and OCR repeated/corrupted trailing digits.
     # Example: "4,3408054" should be "4.340,80" → extract "4340.80"
     if (',' in cleaned or '.' in cleaned) and not (',' in cleaned and '.' in cleaned):
         sep = ',' if ',' in cleaned else '.'
         parts = cleaned.split(sep)
         if len(parts) == 2 and len(parts[1]) >= 4:
-            # OCR corruption: take first 3 digits after sep as thousands, last 2 as decimals
+            # OCR corruption: take first 3 digits after sep as thousands,
+            # then the next 2 digits as decimals, ignoring trailing OCR noise.
             # "4,3408054" → "4" + "340" + "80" = "4340.80"
             left = parts[0]
             right = parts[1]
-            rebuilt = left + right[:3] + '.' + right[-2:]
+            decimals = right[3:5] if len(right) >= 5 else right[3:].ljust(2, '0')
+            rebuilt = left + right[:3] + '.' + decimals
             cleaned = rebuilt
             try:
                 return float(cleaned)
@@ -310,6 +312,10 @@ class ProductExtractor:
     )
     # Matches split OCR installment: "xR 21728"  "xR$ 21728"
     _BROKEN_INST_RE = re.compile(r'[xX]\s*[Rr]\$?\s*(\d{4,6})')
+    _ALT_PAYMENT_RE = re.compile(
+        r'\bou\s+R\$\s*[\d.,]+.{0,5}em\s+\d+\s*[xX]',
+        re.IGNORECASE,
+    )
 
     # Standalone R$ price (not part of an installment already handled above)
     # Captures any sequence of digits/dots/commas after R$ (greedy)
@@ -352,8 +358,7 @@ class ProductExtractor:
             installment_spans.append((m.start(), m.end()))
         # Also mark payment alternatives: "ou R$ XXXX em Nx"
         # Uses .{0,5} to skip over OCR artifacts like degree symbol (°)
-        alt_payment_re = re.compile(r'\bou\s+R\$\s*[\d.,]+.{0,5}em\s+\d+\s*[xX]', re.IGNORECASE)
-        for m in alt_payment_re.finditer(full_text):
+        for m in self._ALT_PAYMENT_RE.finditer(full_text):
             installment_spans.append((m.start(), m.end()))
 
         def _in_installment(pos: int) -> bool:
@@ -897,6 +902,173 @@ class ProductExtractor:
                         best["text"] = best["text"].rstrip() + " " + nxt_text
 
         return best["text"]
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Largest-font current price
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def extract_largest_font_price(self, image_data: bytes) -> Dict:
+        """
+        Return the same payload as `extract()`, but force `price` to the
+        non-strikethrough price rendered with the largest detected font.
+
+        Font size is estimated with a hybrid metric:
+        - OCR bounding-box heights from Tesseract
+        - OpenCV connected-component heights inside the price-line ROI
+        """
+        result = self.extract(image_data)
+        largest_price = self._detect_largest_font_price(image_data)
+        if largest_price is not None:
+            result["price"] = _format_price(largest_price)
+        return result
+
+    def _detect_largest_font_price(self, image_data: bytes) -> Optional[float]:
+        """Select the price shown with the largest font in the product panel."""
+        pil_img = Image.open(io.BytesIO(image_data))
+        if pil_img.mode != "RGB":
+            pil_img = pil_img.convert("RGB")
+
+        full_bgr = _pil_to_bgr(pil_img)
+        anchors = self._find_price_anchors(pil_img)
+        rx, ry, rw, rh = self._build_roi(anchors, pil_img.width, pil_img.height)
+        roi = full_bgr[ry:ry + rh, rx:rx + rw]
+        if roi.size == 0:
+            roi = full_bgr
+
+        scale = 1.5 if max(roi.shape[:2]) < 1800 else 1.0
+        scaled_roi = roi if scale == 1.0 else cv2.resize(
+            roi,
+            None,
+            fx=scale,
+            fy=scale,
+            interpolation=cv2.INTER_CUBIC,
+        )
+        words = self._get_word_data(scaled_roi, scale=scale)
+        line_groups = self._group_into_lines(words)
+        if not line_groups:
+            return None
+
+        candidates: List[Dict] = []
+
+        for line in line_groups:
+            line_text = self._line_text(line).strip()
+            if not line_text or not re.search(r'R\$|\d', line_text, re.IGNORECASE):
+                continue
+            if self._INSTALLMENT_RE.search(line_text):
+                continue
+            if self._BROKEN_INST_RE.search(line_text):
+                continue
+            if self._ALT_PAYMENT_RE.search(line_text):
+                continue
+
+            price_words = [
+                word for word in line
+                if re.search(r'\d|[RrAa]\$', word["text"])
+            ]
+            if not price_words:
+                continue
+
+            line_box = self._line_bbox(line)
+            ocr_height = float(max(word["h"] for word in price_words))
+            cv_height = self._estimate_text_height_cv(roi, line_box)
+            line_has_a_dollar = bool(re.search(r'\b[aA]\$', line_text))
+            has_strike = any(
+                self._detect_strikethrough(roi, word)
+                for word in price_words
+                if re.search(r'\d', word["text"])
+            )
+
+            for match in self._STANDALONE_PRICE_RE.finditer(line_text):
+                value = _extract_price_value(f"R${match.group(1)}")
+                if value is None or value < 100 or value > 100_000:
+                    continue
+                candidates.append(
+                    {
+                        "value": value,
+                        "font_size": max(ocr_height, cv_height),
+                        "ocr_height": ocr_height,
+                        "cv_height": cv_height,
+                        "line_y": min(word["y"] for word in line),
+                        "is_old": line_has_a_dollar or has_strike,
+                    }
+                )
+
+        if not candidates:
+            return None
+
+        preferred = [candidate for candidate in candidates if not candidate["is_old"]]
+        pool = preferred if preferred else candidates
+        best = sorted(
+            pool,
+            key=lambda candidate: (
+                -candidate["font_size"],
+                -candidate["ocr_height"],
+                candidate["line_y"],
+            ),
+        )[0]
+        return best["value"]
+
+    @staticmethod
+    def _line_bbox(line: List[Dict]) -> Tuple[int, int, int, int]:
+        """Return `(x, y, w, h)` for an OCR line."""
+        x1 = min(word["x"] for word in line)
+        y1 = min(word["y"] for word in line)
+        x2 = max(word["x"] + word["w"] for word in line)
+        y2 = max(word["y"] + word["h"] for word in line)
+        return x1, y1, x2 - x1, y2 - y1
+
+    def _estimate_text_height_cv(
+        self,
+        roi_img: np.ndarray,
+        bbox: Tuple[int, int, int, int],
+    ) -> float:
+        """
+        Estimate text height from connected components inside the line ROI.
+
+        This gives an OpenCV-based font-size proxy even when OCR text is noisy.
+        """
+        x, y, w, h = bbox
+        pad_x = max(4, int(w * 0.03))
+        pad_y = max(4, int(h * 0.45))
+
+        x1 = max(0, x - pad_x)
+        y1 = max(0, y - pad_y)
+        x2 = min(roi_img.shape[1], x + w + pad_x)
+        y2 = min(roi_img.shape[0], y + h + pad_y)
+        crop = roi_img[y1:y2, x1:x2]
+        if crop.size == 0:
+            return float(h)
+
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.ndim == 3 else crop
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        _, binary = cv2.threshold(
+            gray,
+            0,
+            255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+        )
+        binary = cv2.morphologyEx(
+            binary,
+            cv2.MORPH_OPEN,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)),
+        )
+
+        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
+        heights: List[int] = []
+        for idx in range(1, num_labels):
+            _, _, cw, ch, area = stats[idx]
+            if area < 12 or cw < 2 or ch < 8:
+                continue
+            if cw > crop.shape[1] * 0.95 and ch > crop.shape[0] * 0.7:
+                continue
+            if ch >= crop.shape[0] * 0.98:
+                continue
+            heights.append(int(ch))
+
+        if not heights:
+            return float(h)
+
+        return float(np.percentile(heights, 75))
 
     # ─────────────────────────────────────────────────────────────────────────
     # Stock & Availability

@@ -185,6 +185,30 @@ async def extract_product(file: UploadFile = File(...)):
         )
 
 
+@app.post("/product-largest-font")
+async def extract_product_largest_font(file: UploadFile = File(...)):
+    """
+    Structured product extraction with `price` forced to the price rendered
+    in the largest detected font.
+
+    Uses OCR bounding boxes plus OpenCV component measurements to estimate
+    font size and ignores installment/payment-alternative lines.
+    """
+    try:
+        contents = await file.read()
+        result = product_extractor.extract_largest_font_price(contents)
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
