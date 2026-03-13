@@ -6,3 +6,4 @@ Pillow==10.2.0
 pytesseract==0.3.10
 opencv-python-headless==4.9.0.80
 numpy==1.26.3
+ultralytics==8.0.185

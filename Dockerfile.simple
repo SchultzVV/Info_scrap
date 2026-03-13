@@ -1,9 +1,12 @@
 FROM python:3.10-slim
 
-# Install Tesseract OCR
-RUN apt-get update && apt-get install -y \
+FROM python:3.10-slim
+
+# Install system dependencies (OpenCV + Tesseract)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-por \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -16,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements-simple.txt
 COPY api_simple.py .
 COPY analyzer.py .
 COPY ecommerce_parser.py .
+COPY yolo_analyzer.py .
 COPY product_extractor.py .
 
 EXPOSE 8000

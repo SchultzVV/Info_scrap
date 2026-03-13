@@ -12,7 +12,7 @@ import io
 
 from analyzer import AdvancedImageAnalyzer
 from ecommerce_parser import EcommerceParser
-from product_extractor import ProductExtractor
+from yolo_analyzer import YoloAnalyzer
 
 app = FastAPI(
     title="Simple OCR API",
@@ -26,8 +26,8 @@ analyzer = AdvancedImageAnalyzer()
 # Initialize e-commerce parser
 ecommerce_parser = EcommerceParser()
 
-# Initialize product extractor (classical CV pipeline)
-product_extractor = ProductExtractor()
+# Initialize YOLO analyzer
+yolo_analyzer = YoloAnalyzer(model_path='models/best.pt')
 
 @app.get("/health")
 def health():
@@ -148,66 +148,45 @@ async def analyze_image(file: UploadFile = File(...)):
         )
 
 
-@app.post("/product")
-async def extract_product(file: UploadFile = File(...)):
+@app.post("/analyze-yolo")
+async def analyze_yolo(file: UploadFile = File(...)):
     """
-    Structured product extraction using classical CV.
-
-    Pipeline:
-      1. ROI detection  – find the product info panel via text-density contours
-      2. Price CV       – strikethrough detection + OCR-artifact + value ordering
-                          → identifies promotional price, old price, or regular price
-      3. Title          – longest high-scoring text line in the upper ROI region
-      4. Stock/avail.   – regex patterns on full-image OCR text
-
+    Analyze product image using YOLO object detection
+    
+    Detects and extracts:
+    - title: Product name
+    - old_price: Original/strikethrough price
+    - current_price: Sale/current price
+    - installment: Payment installments
+    - stock: Stock quantity/availability
+    - seller: Seller information
+    
+    Requires trained YOLO model at models/best.pt
+    
+    Args:
+        file: Product image file
+    
     Returns:
-        {
-          "title"      : str,
-          "price"      : "R$ NNNN.NN",
-          "oldPrice"   : "R$ NNNN.NN" | null,
-          "disponivel" : bool,
-          "via_webhook": false,
-          "stock"      : int | null
-        }
+        JSON with detected and OCR'd information
     """
     try:
+        # Read image data
         contents = await file.read()
-        result = product_extractor.extract(contents)
+        
+        # Run YOLO analysis
+        result = yolo_analyzer.analyze_image(contents)
+        
         return result
+        
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={
                 "success": False,
                 "error": str(e),
-                "error_type": type(e).__name__,
-            },
+                "error_type": type(e).__name__
+            }
         )
-
-
-@app.post("/product-largest-font")
-async def extract_product_largest_font(file: UploadFile = File(...)):
-    """
-    Structured product extraction with `price` forced to the price rendered
-    in the largest detected font.
-
-    Uses OCR bounding boxes plus OpenCV component measurements to estimate
-    font size and ignores installment/payment-alternative lines.
-    """
-    try:
-        contents = await file.read()
-        result = product_extractor.extract_largest_font_price(contents)
-        return result
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        )
-
 
 if __name__ == "__main__":
     import uvicorn
